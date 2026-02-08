@@ -5,6 +5,7 @@ kotlin = "2.3.0"
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 gradle-shadow = { id = "com.gradleup.shadow", version = "9.3.0" }
+maven-publish = { id = "maven-publish" }
 
 [libraries]
 # Core Language Library

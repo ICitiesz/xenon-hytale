@@ -13,10 +13,27 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply true
     alias(libs.plugins.kotlin.serialization) apply true
     alias(libs.plugins.gradle.shadow) apply true
+    alias(libs.plugins.maven.publish) apply true
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
+}
+
+publishing {
+    /* The publishing only used to set up a local Maven repository
+    * to force Intellij treat it as a proper library and make it appear
+    * in the 'External Libraries' section */
+
+    publications {
+        create<MavenPublication>("localHytaleServerJar") {
+            artifact(hytaleServerJarPath)
+            groupId = "com.hypixel"
+            artifactId = "hytale-server"
+            version = "1.0.0"
+        }
+    }
 }
 
 dependencies {
@@ -25,7 +42,7 @@ dependencies {
     implementation(libs.kotlin.reflect)
 
     /* Hytale Server */
-    compileOnly(files(hytaleServerJarPath))
+    compileOnly("com.hypixel:hytale-server:1.0.0")
 
     /* Function Library */
     implementation(libs.koin.core.jvm)
@@ -86,4 +103,9 @@ tasks.named<ShadowJar>("shadowJar") {
     minimize {
         exclude(hytaleServerJarPath)
     }
+}
+
+tasks.register("installHytaleServerJar") {
+    group = "initialization"
+    dependsOn("publishLocalHytaleServerJarPublicationToMavenLocal")
 }
