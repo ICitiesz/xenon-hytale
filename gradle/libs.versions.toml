@@ -1,11 +1,13 @@
 [versions]
 kotlin = "2.3.0"
+koin-annotation = "2.3.1"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 gradle-shadow = { id = "com.gradleup.shadow", version = "9.3.0" }
 maven-publish = { id = "maven-publish" }
+google-devtool-ksp = { id = "com.google.devtools.ksp", version = "2.3.4" }
 
 [libraries]
 # Core Language Library
@@ -14,4 +16,7 @@ kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref =
 
 # Function Library
 koin-core-jvm = { module = "io.insert-koin:koin-core-jvm", version = "4.1.0" }
-koin-annotations-jvm = { module = "io.insert-koin:koin-annotations-jvm", version = "2.3.1" }
+koin-annotations-jvm = { module = "io.insert-koin:koin-annotations-jvm", version.ref = "koin-annotation" }
+koin-ksp-compiler = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-annotation" }
+ktoml-core-jvm = { module = "com.akuleshov7:ktoml-core-jvm", version = "0.7.1" }
+ktoml-file-jvm = { module = "com.akuleshov7:ktoml-file-jvm", version = "0.7.1" }
