@@ -37,6 +37,9 @@ publishing {
 }
 
 dependencies {
+    /* Xenon Child Module */
+    implementation(project(":xenon-hytale-shared"))
+
     /* Core Language Library */
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlin.reflect)
