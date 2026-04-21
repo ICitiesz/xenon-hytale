@@ -5,6 +5,15 @@ import com.islandstudio.xenon.shared.config.BaseConfigSection
 import com.islandstudio.xenon.shared.config.ConfigDataRange
 
 sealed class TestConfigProperty(override val sectionKey: String): BaseConfigSection(sectionKey) {
+    companion object {
+        fun getAllConfigSection(): List<BaseConfigSection> {
+            return TestConfigProperty::class.sealedSubclasses
+                .filter { it is BaseConfigSection }
+                .map { it.objectInstance as BaseConfigSection }
+                .toList()
+        }
+    }
+
     data object TestFeature: TestConfigProperty("TestFeature") {
         override val description: String = "This is a test feature."
 
