@@ -9,15 +9,20 @@ import org.koin.ksp.generated.koinApplication
 
 ])
 object PluginDependencyInjectionManager {
+    private var koinApp: org.koin.core.KoinApplication? = null
+
     fun startAsPluginScoped(pluginContext: IPluginContext) {
-        this.koinApplication().koin.declare(pluginContext)
+        koinApp = this.koinApplication()
+
+        koinApp?.koin?.declare(pluginContext)
     }
 
     fun getKoin(): Koin {
-        return this.koinApplication().koin
+        return koinApp?.koin ?: throw IllegalStateException("Koin not initialized. Call startAsPluginScoped() first.")
     }
 
     fun dispose() {
-        this.koinApplication().close()
+        koinApp?.close()
+        koinApp = null
     }
 }

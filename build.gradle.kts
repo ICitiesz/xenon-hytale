@@ -105,6 +105,7 @@ tasks.named<ShadowJar>("shadowJar") {
 
     minimize {
         exclude(hytaleServerJarPath)
+        exclude(dependency("org.jetbrains.kotlin:kotlin-reflect:.*"))
     }
 }
 
