@@ -1,3 +1,15 @@
 package com.islandstudio.xenon.shared.config
 
-abstract class BaseConfigSection(open val sectionKey: String = "rodeNode"): IConfigDescriptor
+import kotlin.reflect.full.declaredMemberProperties
+
+abstract class BaseConfigSection(open val sectionKey: String = ROOT_NODE_KEY): IConfigDescriptor {
+    companion object {
+        const val ROOT_NODE_KEY = "rootNode"
+    }
+    fun getAllConfigEntry(): List<BaseConfigEntry<*>> {
+        return this::class.declaredMemberProperties
+            .filter { it.returnType.classifier == BaseConfigEntry::class }
+            .map { it.getter.call(this) as BaseConfigEntry<*> }
+            .toList()
+    }
+}

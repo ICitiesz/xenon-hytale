@@ -3,18 +3,19 @@ package com.islandstudio.xenon.shared.config.configproperty
 import com.islandstudio.xenon.shared.config.BaseConfigEntry
 import com.islandstudio.xenon.shared.config.BaseConfigSection
 import com.islandstudio.xenon.shared.config.ConfigDataRange
+import kotlin.reflect.full.isSubclassOf
 
-sealed class TestConfigProperty(override val sectionKey: String): BaseConfigSection(sectionKey) {
+sealed class TestConfigProperty(override val sectionKey: String = ROOT_NODE_KEY): BaseConfigSection(sectionKey) {
     companion object {
         fun getAllConfigSection(): List<BaseConfigSection> {
             return TestConfigProperty::class.sealedSubclasses
-                .filter { it is BaseConfigSection }
-                .map { it.objectInstance as BaseConfigSection }
+                .filter { it.isSubclassOf(BaseConfigSection::class) }
+                .mapNotNull { it.objectInstance as? BaseConfigSection }
                 .toList()
         }
     }
 
-    data object TestFeature: TestConfigProperty("TestFeature") {
+    data object TestFeature: TestConfigProperty() {
         override val description: String = "This is a test feature."
 
         val isEnabled = object : BaseConfigEntry<Boolean>("IsEnabled") {

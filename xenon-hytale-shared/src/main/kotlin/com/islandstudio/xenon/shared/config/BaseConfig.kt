@@ -34,12 +34,27 @@ class BaseConfig<T>(
         val testConfigPropertySections = TestConfigProperty.getAllConfigSection()
 
         testConfigPropertySections.forEach { configSection ->
-            val tomlTable = tomlFileObj.getRealTomlTables().find { it.fullTableKey.toString() == configSection.sectionKey }
+            val tomlNode = if (configSection.sectionKey == BaseConfigSection.ROOT_NODE_KEY) {
+                tomlFileObj
+            } else {
+                tomlFileObj.getRealTomlTables().find { it.fullTableKey.toString() == configSection.sectionKey }
+            }
 
-            if (tomlTable == null) return@forEach
+            tomlNode?.let { node ->
+                val configEntries = configSection.getAllConfigEntry()
 
-            tomlTable.comments.add(configSection.description)
+                node.comments.add(configSection.description)
+
+                node.children.forEach { tomlNodeChild ->
+                    val tomlNodeChildName = tomlNodeChild.name.replaceFirstChar { it.titlecase() }
+                    val configEntry = configEntries.find { it.entryKey == tomlNodeChildName } ?: return@forEach
+
+                    tomlNodeChild.comments.add(configEntry.description)
+                }
+            }
         }
+
+        println("Debug: \n${encodeToString(tomlFileObj)}")
     }
 
     private fun initialize(): T {
