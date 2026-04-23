@@ -46,8 +46,7 @@ class BaseConfig<T>(
                 node.comments.add(configSection.description)
 
                 node.children.forEach { tomlNodeChild ->
-                    val tomlNodeChildName = tomlNodeChild.name.replaceFirstChar { it.titlecase() }
-                    val configEntry = configEntries.find { it.entryKey == tomlNodeChildName } ?: return@forEach
+                    val configEntry = configEntries.find { it.entryKey == tomlNodeChild.name } ?: return@forEach
 
                     tomlNodeChild.comments.add(configEntry.description)
                 }
