@@ -4,67 +4,91 @@ import com.akuleshov7.ktoml.Toml
 import com.akuleshov7.ktoml.TomlIndentation
 import com.akuleshov7.ktoml.TomlInputConfig
 import com.akuleshov7.ktoml.TomlOutputConfig
+import com.akuleshov7.ktoml.exceptions.TomlDecodingException
 import com.akuleshov7.ktoml.tree.nodes.TomlFile
+import com.akuleshov7.ktoml.tree.nodes.TomlKeyValuePrimitive
+import com.akuleshov7.ktoml.tree.nodes.TomlNode
+import com.akuleshov7.ktoml.tree.nodes.TomlTable
+import com.akuleshov7.ktoml.tree.nodes.pairs.values.*
 import com.hypixel.hytale.codec.builder.BuilderCodec
-import com.islandstudio.xenon.shared.config.configproperty.TestConfigProperty
+import com.islandstudio.xenon.shared.exception.TomlExceptionMessage
+import com.islandstudio.xenon.shared.exception.XenonException
 import com.islandstudio.xenon.shared.io.DataDirectory
 import com.islandstudio.xenon.shared.io.ExternalResource
+import com.islandstudio.xenon.shared.utils.data.DataType
+import com.islandstudio.xenon.shared.utils.data.DataUtil
 import kotlinx.serialization.serializer
-import java.io.File
 import kotlin.reflect.full.createType
 
-class BaseConfig<T>(
+class BaseConfig<T> private constructor(
     val configCodec: BuilderCodec<T>,
-    configResource: ExternalResource,
-    inputOption: TomlInputConfig = TomlInputConfig(true, allowEscapedQuotesInLiteralStrings = true),
-    outputOption: TomlOutputConfig = TomlOutputConfig(TomlIndentation.TWO_SPACES)
+    private val configSections: List<BaseConfigSection>,
+    private val tomlInstance: Toml,
+    configResource: ExternalResource
 ) {
-    private val tomlInstance = Toml(inputOption, outputOption)
+    class Builder<T>(private val configCodec: BuilderCodec<T>) {
+        private var inputOption: TomlInputConfig = TomlInputConfig(true, allowEscapedQuotesInLiteralStrings = true)
+        private var outputOption: TomlOutputConfig = TomlOutputConfig(TomlIndentation.TWO_SPACES)
+
+        fun withInputOption(inputOption: TomlInputConfig): Builder<T> {
+            this.inputOption = inputOption
+            return this
+        }
+
+        fun withOutputOption(outputOption: TomlOutputConfig): Builder<T> {
+            this.outputOption = outputOption
+            return this
+        }
+
+        fun build(configSections: List<BaseConfigSection>, configResource: ExternalResource): BaseConfig<T> {
+            return BaseConfig(configCodec, configSections, Toml(inputOption, outputOption), configResource)
+        }
+    }
+
     private val configFile = DataDirectory.createOrGetFile(configResource.resourceFolder, configResource.resourceName)
-    val configObject = initialize()
+    //val configObject = initialize()
 
     init {
         /* 1. Config Object -> Toml String (no comments) */
-        val tomlString = encodeToString(configObject)
+        val tomlString = loadConfig()
 
         /* 2. Toml String -> Toml File */
         val tomlFileObj = decodeToTomFile(tomlString)
 
+        updateConfig(tomlFileObj)
+
         // Testing only
-        val testConfigPropertySections = TestConfigProperty.getAllConfigSection()
-
-        testConfigPropertySections.forEach { configSection ->
-            val tomlNode = if (configSection.sectionKey == BaseConfigSection.ROOT_NODE_KEY) {
-                tomlFileObj
-            } else {
-                tomlFileObj.getRealTomlTables().find { it.fullTableKey.toString() == configSection.sectionKey }
-            }
-
-            tomlNode?.let { node ->
-                val configEntries = configSection.getAllConfigEntry()
-
-                node.comments.add(configSection.description)
-
-                node.children.forEach { tomlNodeChild ->
-                    val configEntry = configEntries.find { it.entryKey == tomlNodeChild.name } ?: return@forEach
-
-                    tomlNodeChild.comments.add(configEntry.description)
-                }
-            }
-        }
-
-        println("Debug: \n${encodeToString(tomlFileObj)}")
+//        val testConfigPropertySections = TestConfigProperty.getAllConfigSection()
+//
+//        testConfigPropertySections.forEach { configSection ->
+//            val tomlNode = if (configSection.sectionKey == BaseConfigSection.ROOT_NODE_KEY) {
+//                tomlFileObj
+//            } else {
+//                tomlFileObj.getRealTomlTables().find { it.fullTableKey.toString() == configSection.sectionKey }
+//            }
+//
+//            tomlNode?.let { node ->
+//                val configEntries = configSection.getAllConfigEntry()
+//
+//                node.comments.add(configSection.description)
+//
+//                node.children.forEach { tomlNodeChild ->
+//                    val configEntry = configEntries.find { it.entryKey == tomlNodeChild.name } ?: return@forEach
+//
+//                    tomlNodeChild.comments.add(configEntry.description)
+//                }
+//            }
+//        }
     }
 
-    private fun initialize(): T {
+    private fun loadConfig(): String {
         if (configFile.length() == 0L) {
             val defaultConfigObject = configCodec.defaultValue
 
-            saveToFile(defaultConfigObject)
-            return defaultConfigObject
+            return encodeToString(defaultConfigObject)
         }
 
-        return toConfigObject(configFile.readText()) // TODO: Revise needed
+        return configFile.reader().use { it.readText() }
     }
 
     private fun encodeToString(tomlFile: TomlFile): String {
@@ -76,39 +100,183 @@ class BaseConfig<T>(
     }
 
     private fun decodeToTomFile(tomlString: String): TomlFile {
-        return tomlInstance.tomlParser.parseString(tomlString)
-    }
+        var tomlStringList = tomlString.split("\n").toMutableList()
 
-    private fun decodeToTomFile(configFile: File): TomlFile {
-        var configContent = configFile
-            .reader()
-            .use {
-                it.readLines().toMutableList()
+        while (true) {
+            val parseResult = runCatching {
+                tomlInstance.tomlParser.parseLines(tomlStringList.asSequence())
+            }.onSuccess {
+                return it
             }
 
-        return tomlInstance.tomlParser.parseLines(configContent.asSequence())
+            tomlStringList = tryResolveParseError(tomlStringList, parseResult)
+        }
+    }
 
-        /* TODO: Revise needed */
-        /* Try to parse and resolve any parse error if possible */
-//        while (true) {
-//            val parseResult = runCatching {
-//                tomlInstance.tomlParser.parseLines(configContent.asSequence())
-//            }.onSuccess {
-//                return it
-//            }
-//
-//            configContent = tryResolveParseError(configContent, parseResult)
-//        }
+    private fun tryResolveParseError(tomlStringList: MutableList<String>, parseResult: Result<TomlFile>): MutableList<String> {
+        val parseException = parseResult.exceptionOrNull() ?: throw XenonException("Failed to parse config file")
+        val parseExceptionMsg = parseException.message
+
+        /* Validate exception */
+        if (parseException !is TomlDecodingException) {
+            parseExceptionMsg?.let {
+                throw XenonException(it)
+            }
+
+            throw XenonException("Failed to parse config file")
+        }
+
+        /* Try to get the string line number that cause parse error */
+        val errorLineNo = parseExceptionMsg?.let { stringChar ->
+            Regex("""[Ll]ine:? <?(\d+)>?""").find(stringChar)?.groupValues?.get(1)?.toInt()
+        } ?: throw XenonException("Error while trying to get error line number from config file!")
+
+        /* Resolve parse error by category */
+        when {
+            // Error Case 1: Incorrect format key-value pair (missing equals sign) | E.g: keyName
+            TomlExceptionMessage.validateExceptionMessage(
+                parseExceptionMsg,
+                TomlExceptionMessage.TomlParseExceptionIncorrectFormat
+            ) -> {
+                tomlStringList[errorLineNo - 1] = "${tomlStringList[errorLineNo - 1].trimEnd()} = \"\""
+            }
+
+            // Error Case 2: Invalid key spaces | E.g: keyName keyValue
+            TomlExceptionMessage.validateExceptionMessage(
+                parseExceptionMsg,
+                TomlExceptionMessage.TomlParseExceptionInvalidSpaces
+            ) -> {
+                tomlStringList[errorLineNo - 1] = with (tomlStringList[errorLineNo - 1].split(" ").filter { it.isNotEmpty() }) {
+                    "${this.first()} = \"${this[1]}\""
+                }
+            }
+
+            // Error Case 3: String value not wrapped or quoted | E.g: keyName = stringValue
+            TomlExceptionMessage.validateExceptionMessage(
+                parseExceptionMsg,
+                TomlExceptionMessage.TomlParseExceptionStringValueNotWrapped
+            ) -> {
+                val searchDelimiter = "="
+                val replacedValue = tomlStringList[errorLineNo - 1].substringAfter(searchDelimiter).trimIndent().run {
+                    return@run DataUtil.toDataType(this, DataType.Boolean)?.let {
+                        it as Boolean
+                    } ?: "\"${this}\""
+                }
+
+                tomlStringList[errorLineNo - 1] = tomlStringList[errorLineNo - 1].replaceAfter(searchDelimiter, " $replacedValue")
+            }
+
+            else -> {
+                throw XenonException(parseExceptionMsg)
+            }
+        }
+
+        return tomlStringList
     }
 
     private fun saveToFile(configObject: T) {
         configFile.writeText(encodeToString(configObject))
     }
 
-    private fun updateConfig(): TomlFile {
-        val parsedConfigAsTomlFile = decodeToTomFile(configFile)
+    private fun updateConfig(tomlFile: TomlFile): TomlFile {
+        val newConfig = TomlFile()
+        val flattenTomlNodes = flattenTomlNode(tomlFile)
 
-        return parsedConfigAsTomlFile
+        flattenTomlNodes.forEach { tomlNode ->
+            val parentTomlNode = tomlNode.parent ?: return@forEach
+            val parentKeyName = parentTomlNode.let {
+                if (it is TomlTable) return@let it.fullTableKey.toString()
+
+                it.name
+            }
+
+            val configSection = configSections.find {
+                parentKeyName == it.sectionKey
+            } ?: return@forEach
+
+            /* Config value validation */
+            if (!tryResolveConfigValue(DataUtil.asType(tomlNode), configSection)) return@forEach
+
+            parentTomlNode.apply {
+                if (newConfig.children.contains(this)) {
+                    this.appendChild(tomlNode)
+
+                    return@apply
+                }
+
+                this.children.clear()
+                this.appendChild(tomlNode)
+
+                newConfig.appendChild(this)
+            }
+        }
+
+        return newConfig
+    }
+
+    private fun flattenTomlNode(rootTomlNode: TomlFile): MutableList<TomlNode> {
+        val tomlNodes: MutableList<TomlNode> = mutableListOf(rootTomlNode)
+
+        while (tomlNodes.any {x -> x is TomlTable || x is TomlFile }) {
+            tomlNodes.toTypedArray().forEach {
+                if (it is TomlTable || it is TomlFile) {
+                    tomlNodes.remove(it)
+                    tomlNodes.addAll(it.children)
+
+                    return@forEach
+                }
+
+                if (tomlNodes.contains(it)) return@forEach
+
+                tomlNodes.add(it)
+            }
+        }
+
+        return tomlNodes
+    }
+
+    private fun tryResolveConfigValue(tomlKeyValue: TomlKeyValuePrimitive, configSection: BaseConfigSection): Boolean {
+        val configEntry = configSection.getAllConfigEntry().find {
+            it.entryKey == tomlKeyValue.name
+        } ?: return false
+
+        val configValue = tomlKeyValue.value.content
+        val configValueDataType = getDataType(tomlKeyValue.value)
+        val configValueDataRange = configEntry.dataRange
+
+        /* Validate and resolve data type if mismatch data type */
+        if (configValueDataType != configEntry.dataType) {
+            val newConfigValue = DataUtil.toDataType(configValue, configEntry.dataType)
+                ?: configEntry.defaultValue
+                ?: return false
+
+            tomlKeyValue.value.content = newConfigValue
+        }
+
+        /* Validate and resolve data range if mismatch data range */
+        if (!ConfigDataRange.validateDataRange(configValue, configEntry.dataType, configValueDataRange)) {
+            val newConfigValue = DataUtil.toDataType(configValue, configEntry.dataType)
+                ?: configEntry.defaultValue
+                ?: return false
+
+            tomlKeyValue.value.content = newConfigValue
+        }
+
+        return true
+    }
+
+    private fun getDataType(tomlDataType: TomlValue): DataType {
+        return when (tomlDataType) {
+            is TomlBasicString, is TomlLiteralString -> DataType.String
+
+            is TomlBoolean -> DataType.Boolean
+
+            is TomlLong -> DataType.Long
+
+            is TomlDouble -> DataType.Double
+
+            else -> throw XenonException("Unsupported data type: $tomlDataType")
+        }
     }
 
     private fun toConfigObject(configContent: String): T {
@@ -135,9 +303,5 @@ class BaseConfig<T>(
                 serializer(configCodec.defaultValue::class.createType()),
                 configContent
             ) as T
-    }
-
-    fun addComment() {
-
     }
 }
