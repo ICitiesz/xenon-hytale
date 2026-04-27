@@ -20,7 +20,7 @@ import com.islandstudio.xenon.shared.utils.data.DataUtil
 import kotlinx.serialization.serializer
 import kotlin.reflect.full.createType
 
-class BaseConfig<T> private constructor(
+class CoreConfig<T> private constructor(
     val configCodec: BuilderCodec<T>,
     private val configSections: List<BaseConfigSection>,
     private val tomlInstance: Toml,
@@ -40,8 +40,8 @@ class BaseConfig<T> private constructor(
             return this
         }
 
-        fun build(configSections: List<BaseConfigSection>, configResource: ExternalResource): BaseConfig<T> {
-            return BaseConfig(configCodec, configSections, Toml(inputOption, outputOption), configResource)
+        fun build(configSections: List<BaseConfigSection>, configResource: ExternalResource): CoreConfig<T> {
+            return CoreConfig(configCodec, configSections, Toml(inputOption, outputOption), configResource)
         }
     }
 

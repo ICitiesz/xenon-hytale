@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class TestConfigObject(
     val IsEnabled: Boolean = TestConfigProperty.TestFeature.isEnabled.defaultValue,
-    //val Options: TestOptions = TestOptions()
+    val Options: TestOptions = TestOptions()
 ) {
     companion object: BuilderCodec.Builder<TestConfigObject>(TestConfigObject::class.java, ::TestConfigObject) {
         val CONFIG_CODEC: BuilderCodec<TestConfigObject>
