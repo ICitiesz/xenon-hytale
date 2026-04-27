@@ -27,7 +27,7 @@ sealed class TestConfigProperty(override val sectionKey: String = ROOT_NODE_KEY)
         }
     }
 
-    data object TestFeatureOption: TestConfigProperty("TestFeature.Option") {
+    data object TestFeatureOption: TestConfigProperty("Options") {
         override val description: String = "This is a test feature option."
 
         val testOption1 = object : BaseConfigEntry<Long>("TestOption1") {

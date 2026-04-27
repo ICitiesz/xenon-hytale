@@ -46,39 +46,25 @@ class BaseConfig<T> private constructor(
     }
 
     private val configFile = DataDirectory.createOrGetFile(configResource.resourceFolder, configResource.resourceName)
-    //val configObject = initialize()
+    val configObject: T
 
     init {
-        /* 1. Config Object -> Toml String (no comments) */
-        val tomlString = loadConfig()
+        /* 1. Config Object -> Toml String (no comments)
+        *  2. Toml String -> Toml File
+        *  3. Update Config & Add Comments
+        * */
+        val updatedTomlString = loadConfig().run {
+            val originalTomlFile = decodeToTomFile(this)
+            val updatedTomlFile = updateConfig(originalTomlFile).run {
+                addComments(this)
+            }
 
-        /* 2. Toml String -> Toml File */
-        val tomlFileObj = decodeToTomFile(tomlString)
+            return@run encodeToString(updatedTomlFile)
+        }
 
-        updateConfig(tomlFileObj)
+        configObject = decodeToConfigObject(updatedTomlString)
 
-        // Testing only
-//        val testConfigPropertySections = TestConfigProperty.getAllConfigSection()
-//
-//        testConfigPropertySections.forEach { configSection ->
-//            val tomlNode = if (configSection.sectionKey == BaseConfigSection.ROOT_NODE_KEY) {
-//                tomlFileObj
-//            } else {
-//                tomlFileObj.getRealTomlTables().find { it.fullTableKey.toString() == configSection.sectionKey }
-//            }
-//
-//            tomlNode?.let { node ->
-//                val configEntries = configSection.getAllConfigEntry()
-//
-//                node.comments.add(configSection.description)
-//
-//                node.children.forEach { tomlNodeChild ->
-//                    val configEntry = configEntries.find { it.entryKey == tomlNodeChild.name } ?: return@forEach
-//
-//                    tomlNodeChild.comments.add(configEntry.description)
-//                }
-//            }
-//        }
+        saveToFile(updatedTomlString)
     }
 
     private fun loadConfig(): String {
@@ -111,6 +97,141 @@ class BaseConfig<T> private constructor(
 
             tomlStringList = tryResolveParseError(tomlStringList, parseResult)
         }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun decodeToConfigObject(tomlString: String): T {
+        return tomlInstance.decodeFromString(serializer(configCodec.defaultValue::class.createType()), tomlString) as T
+    }
+
+    private fun saveToFile(tomlString: String) {
+        configFile.writeText(tomlString)
+    }
+
+    private fun addComments(tomlFile: TomlFile): TomlFile {
+        configSections.forEach { configSection ->
+            val tomlNode = if (configSection.sectionKey == BaseConfigSection.ROOT_NODE_KEY) {
+                tomlFile
+            } else {
+                tomlFile.getRealTomlTables().find { it.fullTableKey.toString() == configSection.sectionKey }
+            }
+
+            tomlNode?.let { node ->
+                val configEntries = configSection.getAllConfigEntry()
+
+                node.comments.add(configSection.description)
+
+                node.children.forEach { tomlNodeChild ->
+                    val configEntry = configEntries.find { it.entryKey == tomlNodeChild.name } ?: return@forEach
+
+                    tomlNodeChild.comments.add(configEntry.description)
+                }
+            }
+        }
+
+        return tomlFile
+    }
+
+    private fun updateConfig(tomlFile: TomlFile): TomlFile {
+        val updatedConfig = decodeToTomFile(encodeToString(configCodec.defaultValue))
+        val flattenTomlNodes = flattenTomlNode(tomlFile)
+
+        flattenTomlNodes.forEach { tomlNode ->
+            val tomlNodeParent = tomlNode.parent ?: return@forEach
+            val tomlNodeParentName: String
+
+            val tomlKeyValue = when (tomlNodeParent) {
+                is TomlTable -> {
+                    val tomlTable = updatedConfig.getAllChildTomlTables().find {
+                        it.fullTableKey.toString() == tomlNodeParent.fullTableKey.toString()
+                    } ?: return@forEach
+
+                    tomlNodeParentName = tomlTable.fullTableKey.toString()
+
+                    tomlTable.children.find {
+                        it.name == tomlNode.name
+                    }?.let { DataUtil.asType<TomlKeyValuePrimitive>(it) } ?: return@forEach
+                }
+
+                is TomlFile -> {
+                    tomlNodeParentName = BaseConfigSection.ROOT_NODE_KEY
+
+                    updatedConfig.children.find {
+                        it.name == tomlNode.name
+                    }?.let { DataUtil.asType<TomlKeyValuePrimitive>(it) } ?: return@forEach
+                }
+
+                else -> return@forEach
+            }
+
+            val configSection = configSections.find {
+                tomlNodeParentName == it.sectionKey
+            } ?: return@forEach
+
+            tomlKeyValue.value.content = DataUtil.asType<TomlKeyValuePrimitive>(tomlNode).value.content
+
+            /* Config value validation */
+            if (!tryResolveConfigValue(tomlKeyValue, configSection)) return@forEach
+        }
+
+        return updatedConfig
+    }
+
+    /**
+     * Flatten toml node. (Excluded TomlFile (RootNode) and TomlTable)
+     *
+     * @param rootTomlNode
+     * @return
+     */
+    private fun flattenTomlNode(rootTomlNode: TomlFile): MutableList<TomlNode> {
+        val tomlNodes: MutableList<TomlNode> = mutableListOf(rootTomlNode)
+
+        while (tomlNodes.any {x -> x is TomlTable || x is TomlFile }) {
+            tomlNodes.toTypedArray().forEach {
+                if (it is TomlTable || it is TomlFile) {
+                    tomlNodes.remove(it)
+                    tomlNodes.addAll(it.children)
+
+                    return@forEach
+                }
+
+                if (tomlNodes.contains(it)) return@forEach
+
+                tomlNodes.add(it)
+            }
+        }
+
+        return tomlNodes
+    }
+
+    private fun tryResolveConfigValue(tomlKeyValue: TomlKeyValuePrimitive, configSection: BaseConfigSection): Boolean {
+        val configEntry = configSection.getAllConfigEntry().find {
+            it.entryKey == tomlKeyValue.name
+        } ?: return false
+
+        val configValue = tomlKeyValue.value.content
+        val configValueDataType = getDataType(tomlKeyValue.value)
+        val configValueDataRange = configEntry.dataRange
+
+        /* Validate and resolve data type if mismatch data type */
+        if (configValueDataType != configEntry.dataType) {
+            val newConfigValue = DataUtil.toDataType(configValue, configEntry.dataType)
+                ?: configEntry.defaultValue
+                ?: return false
+
+            tomlKeyValue.value.content = newConfigValue
+        }
+
+        /* Validate and resolve data range if mismatch data range */
+        if (!ConfigDataRange.validateDataRange(configValue, configEntry.dataType, configValueDataRange)) {
+            val newConfigValue = DataUtil.toDataType(configValue, configEntry.dataType)
+                ?: configEntry.defaultValue
+                ?: return false
+
+            tomlKeyValue.value.content = newConfigValue
+        }
+
+        return true
     }
 
     private fun tryResolveParseError(tomlStringList: MutableList<String>, parseResult: Result<TomlFile>): MutableList<String> {
@@ -172,97 +293,6 @@ class BaseConfig<T> private constructor(
         }
 
         return tomlStringList
-    }
-
-    private fun saveToFile(configObject: T) {
-        configFile.writeText(encodeToString(configObject))
-    }
-
-    private fun updateConfig(tomlFile: TomlFile): TomlFile {
-        val newConfig = TomlFile()
-        val flattenTomlNodes = flattenTomlNode(tomlFile)
-
-        flattenTomlNodes.forEach { tomlNode ->
-            val parentTomlNode = tomlNode.parent ?: return@forEach
-            val parentKeyName = parentTomlNode.let {
-                if (it is TomlTable) return@let it.fullTableKey.toString()
-
-                it.name
-            }
-
-            val configSection = configSections.find {
-                parentKeyName == it.sectionKey
-            } ?: return@forEach
-
-            /* Config value validation */
-            if (!tryResolveConfigValue(DataUtil.asType(tomlNode), configSection)) return@forEach
-
-            parentTomlNode.apply {
-                if (newConfig.children.contains(this)) {
-                    this.appendChild(tomlNode)
-
-                    return@apply
-                }
-
-                this.children.clear()
-                this.appendChild(tomlNode)
-
-                newConfig.appendChild(this)
-            }
-        }
-
-        return newConfig
-    }
-
-    private fun flattenTomlNode(rootTomlNode: TomlFile): MutableList<TomlNode> {
-        val tomlNodes: MutableList<TomlNode> = mutableListOf(rootTomlNode)
-
-        while (tomlNodes.any {x -> x is TomlTable || x is TomlFile }) {
-            tomlNodes.toTypedArray().forEach {
-                if (it is TomlTable || it is TomlFile) {
-                    tomlNodes.remove(it)
-                    tomlNodes.addAll(it.children)
-
-                    return@forEach
-                }
-
-                if (tomlNodes.contains(it)) return@forEach
-
-                tomlNodes.add(it)
-            }
-        }
-
-        return tomlNodes
-    }
-
-    private fun tryResolveConfigValue(tomlKeyValue: TomlKeyValuePrimitive, configSection: BaseConfigSection): Boolean {
-        val configEntry = configSection.getAllConfigEntry().find {
-            it.entryKey == tomlKeyValue.name
-        } ?: return false
-
-        val configValue = tomlKeyValue.value.content
-        val configValueDataType = getDataType(tomlKeyValue.value)
-        val configValueDataRange = configEntry.dataRange
-
-        /* Validate and resolve data type if mismatch data type */
-        if (configValueDataType != configEntry.dataType) {
-            val newConfigValue = DataUtil.toDataType(configValue, configEntry.dataType)
-                ?: configEntry.defaultValue
-                ?: return false
-
-            tomlKeyValue.value.content = newConfigValue
-        }
-
-        /* Validate and resolve data range if mismatch data range */
-        if (!ConfigDataRange.validateDataRange(configValue, configEntry.dataType, configValueDataRange)) {
-            val newConfigValue = DataUtil.toDataType(configValue, configEntry.dataType)
-                ?: configEntry.defaultValue
-                ?: return false
-
-            tomlKeyValue.value.content = newConfigValue
-        }
-
-        return true
     }
 
     private fun getDataType(tomlDataType: TomlValue): DataType {
