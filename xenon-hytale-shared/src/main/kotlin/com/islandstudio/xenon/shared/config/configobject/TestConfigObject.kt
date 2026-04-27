@@ -21,6 +21,12 @@ data class TestConfigObject(
                 { testConfigObject -> testConfigObject.IsEnabled }
             ).add()
 
+            this.append(
+                KeyedCodec(TestConfigProperty.TestFeatureOption.testOption1.entryKey, BuilderCodec.LONG),
+                { testConfigObject, value -> testConfigObject.copy(Options = testConfigObject.Options.copy(TestOption1 = value)) },
+                { testConfigObject -> testConfigObject.Options.TestOption1 }
+            ).add()
+
             CONFIG_CODEC = this.build()
         }
     }
