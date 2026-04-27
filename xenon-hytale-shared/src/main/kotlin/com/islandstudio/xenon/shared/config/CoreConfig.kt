@@ -308,30 +308,4 @@ class CoreConfig<T> private constructor(
             else -> throw XenonException("Unsupported data type: $tomlDataType")
         }
     }
-
-    private fun toConfigObject(configContent: String): T {
-        var configContent2 = configFile
-            .reader()
-            .use {
-                it.readLines().toMutableList()
-            }
-
-        val s2 = tomlInstance.tomlParser.parseLines(configContent2.asSequence())
-//        s2.children.forEach {
-//            println("Debug: \n${it.comments}")
-//        }
-
-        s2.getRealTomlTables().forEach {
-            it.children
-            println("Debug: ${it.fullTableKey}")
-        }
-
-        //println("Debug: \n${tomlInstance.tomlWriter.writeToString(s2)}")
-
-        return tomlInstance
-            .decodeFromString(
-                serializer(configCodec.defaultValue::class.createType()),
-                configContent
-            ) as T
-    }
 }
