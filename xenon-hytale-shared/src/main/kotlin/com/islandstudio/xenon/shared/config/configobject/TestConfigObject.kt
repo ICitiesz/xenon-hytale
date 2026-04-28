@@ -8,8 +8,8 @@ import kotlinx.serialization.Serializable
 @Suppress("PropertyName")
 @Serializable
 data class TestConfigObject(
-    val IsEnabled: Boolean = TestConfigProperty.TestFeature.isEnabled.defaultValue,
-    val Options: TestOptions = TestOptions()
+    var IsEnabled: Boolean = TestConfigProperty.TestFeature.isEnabled.defaultValue,
+    var Options: TestOptions = TestOptions()
 ) {
     companion object: BuilderCodec.Builder<TestConfigObject>(TestConfigObject::class.java, ::TestConfigObject) {
         val CONFIG_CODEC: BuilderCodec<TestConfigObject>

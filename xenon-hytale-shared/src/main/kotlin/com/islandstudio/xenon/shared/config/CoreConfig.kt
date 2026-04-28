@@ -46,35 +46,46 @@ class CoreConfig<T> private constructor(
     }
 
     private val configFile = DataDirectory.createOrGetFile(configResource.resourceFolder, configResource.resourceName)
-    val configObject: T
+    private var configContext: T
 
     init {
         /* 1. Config Object -> Toml String (no comments)
         *  2. Toml String -> Toml File
         *  3. Update Config & Add Comments
         * */
-        val updatedTomlString = loadConfig().run {
-            val originalTomlFile = decodeToTomFile(this)
-            val updatedTomlFile = updateConfig(originalTomlFile).run {
-                addComments(this)
-            }
+        val loadedConfigAsTomlString = loadConfig()
 
-            return@run encodeToString(updatedTomlFile)
-        }
+        configContext = decodeToConfigObject(loadedConfigAsTomlString)
 
-        configObject = decodeToConfigObject(updatedTomlString)
-
-        saveToFile(updatedTomlString)
+        internalSaveToFile(loadedConfigAsTomlString)
     }
 
     private fun loadConfig(): String {
-        if (configFile.length() == 0L) {
-            val defaultConfigObject = configCodec.defaultValue
+        val isLoadAsNew: Boolean
+        val loadedTomlString = if (configFile.length() == 0L) {
+            isLoadAsNew = true
+            encodeToString(configCodec.defaultValue)
+        } else {
+            isLoadAsNew = false
+            configFile.reader().use { it.readText() }
+        }
+        val loadedTomlFile = with(decodeToTomFile(loadedTomlString)) {
+            val updatedTomlFile = if (isLoadAsNew) this else updateConfig(this)
 
-            return encodeToString(defaultConfigObject)
+            return@with addComments(updatedTomlFile)
         }
 
-        return configFile.reader().use { it.readText() }
+        return encodeToString(loadedTomlFile)
+    }
+
+    fun getContext(): T {
+        return configContext
+    }
+
+    fun reloadConfig() {
+        val loadedConfigAsTomlString = loadConfig()
+
+        configContext = decodeToConfigObject(loadedConfigAsTomlString)
     }
 
     private fun encodeToString(tomlFile: TomlFile): String {
@@ -104,8 +115,18 @@ class CoreConfig<T> private constructor(
         return tomlInstance.decodeFromString(serializer(configCodec.defaultValue::class.createType()), tomlString) as T
     }
 
-    private fun saveToFile(tomlString: String) {
+    private fun internalSaveToFile(tomlString: String) {
         configFile.writeText(tomlString)
+    }
+
+    fun saveConfig() {
+        val tomlFile = decodeToTomFile(encodeToString(configContext)).run {
+            addComments(this)
+        }
+
+        val tomlString = encodeToString(tomlFile)
+
+        internalSaveToFile(tomlString)
     }
 
     private fun addComments(tomlFile: TomlFile): TomlFile {
