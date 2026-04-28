@@ -22,7 +22,7 @@ import kotlin.reflect.full.createType
 
 class CoreConfig<T> private constructor(
     val configCodec: BuilderCodec<T>,
-    private val configSections: List<BaseConfigSection>,
+    private val configSections: List<AbstractConfigSection>,
     private val tomlInstance: Toml,
     configResource: ExternalResource
 ) {
@@ -40,7 +40,7 @@ class CoreConfig<T> private constructor(
             return this
         }
 
-        fun build(configSections: List<BaseConfigSection>, configResource: ExternalResource): CoreConfig<T> {
+        fun build(configSections: List<AbstractConfigSection>, configResource: ExternalResource): CoreConfig<T> {
             return CoreConfig(configCodec, configSections, Toml(inputOption, outputOption), configResource)
         }
     }
@@ -131,7 +131,7 @@ class CoreConfig<T> private constructor(
 
     private fun addComments(tomlFile: TomlFile): TomlFile {
         configSections.forEach { configSection ->
-            val tomlNode = if (configSection.sectionKey == BaseConfigSection.ROOT_NODE_KEY) {
+            val tomlNode = if (configSection.sectionKey == AbstractConfigSection.ROOT_NODE_KEY) {
                 tomlFile
             } else {
                 tomlFile.getRealTomlTables().find { it.fullTableKey.toString() == configSection.sectionKey }
@@ -175,7 +175,7 @@ class CoreConfig<T> private constructor(
                 }
 
                 is TomlFile -> {
-                    tomlNodeParentName = BaseConfigSection.ROOT_NODE_KEY
+                    tomlNodeParentName = AbstractConfigSection.ROOT_NODE_KEY
 
                     updatedConfig.children.find {
                         it.name == tomlNode.name
@@ -225,7 +225,7 @@ class CoreConfig<T> private constructor(
         return tomlNodes
     }
 
-    private fun tryResolveConfigValue(tomlKeyValue: TomlKeyValuePrimitive, configSection: BaseConfigSection): Boolean {
+    private fun tryResolveConfigValue(tomlKeyValue: TomlKeyValuePrimitive, configSection: AbstractConfigSection): Boolean {
         val configEntry = configSection.getAllConfigEntry().find {
             it.entryKey == tomlKeyValue.name
         } ?: return false
