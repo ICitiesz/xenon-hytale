@@ -1,6 +1,7 @@
 package com.islandstudio.xenon.experimental
 
 import com.hypixel.hytale.protocol.Direction
+import com.hypixel.hytale.protocol.Position
 import com.hypixel.hytale.protocol.packets.player.ClientMovement
 import com.hypixel.hytale.server.core.Message
 import com.islandstudio.xenon.shared.di.IComponentProvider
@@ -12,9 +13,9 @@ import kotlin.math.abs
 class PlayerObservedObjectSystem {
     companion object: IComponentProvider {
         private val pluginContext = getComponent<IPluginContext>()
-        private var lastBodyOrientation: Direction? = null
+        private var lastAbsolutePosition: Position? = null
         private var lastLookOrientation: Direction? = null
-        private const val MOVEMENT_THRESHOLD = 0.001f
+        private const val MOVEMENT_THRESHOLD = 0.1f
 
         fun run() {
             pluginContext.packetFilterRegistry.registerPlayerPacketFilter(
@@ -23,19 +24,20 @@ class PlayerObservedObjectSystem {
                     { playerRef, packet ->
                         val clientMovementPacket = packet as? ClientMovement ?: return@PlayerPacketFilterHolder false
 
-                        clientMovementPacket.bodyOrientation?.let {
-                            if (lastBodyOrientation == null) {
-                                lastBodyOrientation = it
+                        clientMovementPacket.absolutePosition?.let {
+                            if (lastAbsolutePosition == null) {
+                                lastAbsolutePosition = it
                                 return@let
                             }
 
-                            val yawDelta = abs(it.yaw - lastBodyOrientation!!.yaw)
-                            val pitchDelta = abs(it.pitch - lastBodyOrientation!!.pitch)
-                            val rollDelta = abs(it.roll - lastBodyOrientation!!.roll)
+                            val xDelta = abs(it.x - lastAbsolutePosition!!.x)
+                            val yDelta = abs(it.y - lastAbsolutePosition!!.y)
+                            val zDelta = abs(it.z - lastAbsolutePosition!!.z)
 
-                            if (yawDelta > MOVEMENT_THRESHOLD || pitchDelta > MOVEMENT_THRESHOLD || rollDelta > MOVEMENT_THRESHOLD) {
+                            if (xDelta > MOVEMENT_THRESHOLD || yDelta > MOVEMENT_THRESHOLD || zDelta > MOVEMENT_THRESHOLD) {
                                 playerRef.sendMessage(Message.raw("Debug: Movement detected"))
-                                lastBodyOrientation = it
+                                lastAbsolutePosition = it
+                                return@PlayerPacketFilterHolder false
                             }
                         }
 
@@ -52,6 +54,7 @@ class PlayerObservedObjectSystem {
                             if (yawDelta > MOVEMENT_THRESHOLD || pitchDelta > MOVEMENT_THRESHOLD || rollDelta > MOVEMENT_THRESHOLD) {
                                 playerRef.sendMessage(Message.raw("Debug: Look detected"))
                                 lastLookOrientation = it
+                                return@PlayerPacketFilterHolder false
                             }
                         }
 
