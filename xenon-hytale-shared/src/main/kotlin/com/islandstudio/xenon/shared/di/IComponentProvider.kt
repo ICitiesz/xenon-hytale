@@ -1,9 +1,12 @@
 package com.islandstudio.xenon.shared.di
 
-import com.islandstudio.xenon.shared.di.PluginDependencyInjectionManager.getKoin
 import org.koin.core.parameter.ParametersHolder
 
-interface IComponentProvider
+interface IComponentProvider {
+    fun getKoin(): org.koin.core.Koin {
+        return PluginDependencyInjectionManager.getKoin()
+    }
+}
 
 inline fun <reified T : Any> IComponentProvider.injectComponent(): Lazy<T> {
     return getKoin().inject<T>()

@@ -19,19 +19,29 @@ import com.hypixel.hytale.server.core.plugin.JavaPluginInit
 import com.hypixel.hytale.server.core.universe.PlayerRef
 import com.hypixel.hytale.server.core.universe.world.ParticleUtil
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
+import com.islandstudio.xenon.di.MainModule
 import com.islandstudio.xenon.experimental.PlayerObservedObjectSystem
+import com.islandstudio.xenon.shared.di.IComponentProvider
 import com.islandstudio.xenon.shared.di.PluginDependencyInjectionManager
+import com.islandstudio.xenon.shared.di.getComponent
 import com.islandstudio.xenon.shared.init.context.PluginContext
+import org.koin.ksp.generated.module
 
 
-class Xenon(init: JavaPluginInit) : JavaPlugin(init) {
+class Xenon(init: JavaPluginInit) : JavaPlugin(init), IComponentProvider {
     private val pluginContext = PluginContext(this)
 
     protected override fun setup() {
-        PluginDependencyInjectionManager.startAsPluginScoped(pluginContext)
+        PluginDependencyInjectionManager.startAsPluginScoped(
+            pluginContext,
+            MainModule().module
+        )
 
         this.entityStoreRegistry.registerSystem(BlockBreakEventSystem())
-        PlayerObservedObjectSystem.run()
+
+        val playerObservedObjectSystem = getComponent<PlayerObservedObjectSystem>()
+
+        playerObservedObjectSystem.run()
     }
 
     override fun shutdown() {

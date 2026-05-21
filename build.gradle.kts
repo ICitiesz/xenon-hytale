@@ -1,7 +1,7 @@
+
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.kotlin.dsl.support.uppercaseFirstChar
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 val hytaleServerJarPath = (findProperty("hytale_server_jar_path") ?: "server/HytaleServer.jar") as String
 val pluginShadedJarName = "xenon-shaded.jar"
@@ -14,6 +14,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply true
     alias(libs.plugins.gradle.shadow) apply true
     alias(libs.plugins.maven.publish) apply true
+    alias(libs.plugins.google.devtool.ksp) apply true
 }
 
 repositories {
@@ -50,6 +51,8 @@ dependencies {
     /* Function Library */
     implementation(libs.koin.core.jvm)
     implementation(libs.koin.annotations.jvm)
+
+    ksp(libs.koin.ksp.compiler)
 }
 
 kotlin {
@@ -65,8 +68,8 @@ kotlin {
     }
 
     compilerOptions {
-        apiVersion.set(KotlinVersion.KOTLIN_2_3)
-        languageVersion.set(KotlinVersion.KOTLIN_2_3)
+        apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3)
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3)
         jvmTarget.set(JvmTarget.JVM_25)
     }
 }
@@ -110,6 +113,7 @@ tasks.named<ShadowJar>("shadowJar") {
 }
 
 tasks.register("installHytaleServerJar") {
+    description = ""
     group = "initialization"
     dependsOn("publishLocalHytaleServerJarPublicationToMavenLocal")
 }
