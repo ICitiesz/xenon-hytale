@@ -2,7 +2,6 @@ package com.islandstudio.xenon.experimental
 
 import com.hypixel.hytale.component.ComponentAccessor
 import com.hypixel.hytale.component.Ref
-import com.hypixel.hytale.math.vector.Vector3d
 import com.hypixel.hytale.protocol.Direction
 import com.hypixel.hytale.protocol.Position
 import com.hypixel.hytale.protocol.packets.player.ClientMovement
@@ -16,6 +15,7 @@ import com.islandstudio.xenon.shared.di.IComponentProvider
 import com.islandstudio.xenon.shared.di.getComponent
 import com.islandstudio.xenon.shared.experimental.protocol.PacketFilterRegistry
 import com.islandstudio.xenon.shared.init.context.IPluginContext
+import org.joml.Vector3d
 import org.koin.core.annotation.Single
 import kotlin.math.abs
 
@@ -60,8 +60,12 @@ class PlayerObservedObjectSystem: IComponentProvider {
                                     val modelComponent = store.getComponent(ref, ModelComponent.getComponentType())
                                     val eyeHeight = modelComponent?.model?.getEyeHeight(ref, store) ?: 0.0f
 
-                                    val playerViewPosition = Vector3d(playerTransform.position.x, playerTransform.position.y + eyeHeight, playerTransform.position.z)
-                                    val targetBlockVector3d = targetBlockVector3i.toVector3d().add(0.5, 0.5, 0.5)
+                                    val playerViewPosition = Vector3d(
+                                        playerTransform.position.x,
+                                        playerTransform.position.y + eyeHeight,
+                                        playerTransform.position.z
+                                    )
+                                    val targetBlockVector3d = Vector3d(targetBlockVector3i).add(0.5, 0.5, 0.5)
 
                                     spawnLaserBeam(playerViewPosition, targetBlockVector3d, "DebugOrb2", listOf(ref), store)
                                 }
@@ -97,7 +101,7 @@ class PlayerObservedObjectSystem: IComponentProvider {
                                     val eyeHeight = modelComponent?.model?.getEyeHeight(ref, store) ?: 0.0f
 
                                     val playerViewPosition = Vector3d(playerTransform.position.x, playerTransform.position.y + eyeHeight, playerTransform.position.z)
-                                    val targetBlockVector3d = targetBlockVector3i.toVector3d().add(0.5, 0.5, 0.5)
+                                    val targetBlockVector3d = Vector3d(targetBlockVector3i).add(0.5, 0.5, 0.5)
 
                                     spawnLaserBeam(playerViewPosition, targetBlockVector3d, "DebugOrb2", listOf(ref), store)
                                 }
@@ -122,7 +126,7 @@ class PlayerObservedObjectSystem: IComponentProvider {
         componentAccessor: ComponentAccessor<EntityStore>,
         spacing: Double = 0.5
     ) {
-        val direction = Vector3d(endPos).subtract(startPos)
+        val direction = Vector3d(endPos).sub(startPos)
         val distance = direction.length()
 
         if (distance == 0.0) return
@@ -130,6 +134,7 @@ class PlayerObservedObjectSystem: IComponentProvider {
         direction.normalize()
 
         var currentDistance = 0.0
+
         while (currentDistance <= distance) {
             val position = Vector3d(startPos).add(
                 direction.x * currentDistance,
