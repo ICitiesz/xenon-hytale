@@ -3,17 +3,11 @@ package com.islandstudio.xenon
 import com.hypixel.hytale.component.*
 import com.hypixel.hytale.component.query.Query
 import com.hypixel.hytale.component.system.EntityEventSystem
-import com.hypixel.hytale.math.vector.Vector3d
-import com.hypixel.hytale.protocol.Color
-import com.hypixel.hytale.protocol.Direction
-import com.hypixel.hytale.protocol.Vector3f
 import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.asset.type.particle.config.WorldParticle
 import com.hypixel.hytale.server.core.entity.entities.Player
 import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerMouseMotionEvent
-import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent
-import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
 import com.hypixel.hytale.server.core.universe.PlayerRef
@@ -25,6 +19,7 @@ import com.islandstudio.xenon.shared.di.IComponentProvider
 import com.islandstudio.xenon.shared.di.PluginDependencyInjectionManager
 import com.islandstudio.xenon.shared.di.getComponent
 import com.islandstudio.xenon.shared.init.context.PluginContext
+import org.joml.Vector3d
 import org.koin.ksp.generated.module
 
 
@@ -61,25 +56,29 @@ class Xenon(init: JavaPluginInit) : JavaPlugin(init), IComponentProvider {
             val player = store.getComponent(entityStoreRef, Player.getComponentType())
             val playerRef = player?.reference
 
-
-
             playerRef?.store?.let {
-                val playerTransform = it.getComponent(playerRef, TransformComponent.getComponentType())
-                    ?: return@let
+                val playerRefObj = it.getComponent(playerRef, PlayerRef.getComponentType())
 
-                val modelComponent = it.getComponent(playerRef, ModelComponent.getComponentType()) as ModelComponent?
-                val eyeHeight = modelComponent?.model?.getEyeHeight(playerRef, it) ?: 0.0f
-
-                val worldParticle = WorldParticle("Ball2", Color(255.toByte(), 0, 0), 1.0F, Vector3f(0F, 0F, 0F),
-                    Direction(0F, 0F, 0F))
-
-                spawnLaserBeam(
-                    Vector3d(playerTransform.position.x, playerTransform.position.y + eyeHeight, playerTransform.position.z),
-                    Vector3d(event.targetBlock.x + 0.5, event.targetBlock.y + 0.5, event.targetBlock.z + 0.5),
-                    worldParticle,
-                    listOf(playerRef),
-                    it)
+                playerRefObj?.sendMessage(Message.raw("Debug: Block break!"))
             }
+
+//            playerRef?.store?.let {
+//                val playerTransform = it.getComponent(playerRef, TransformComponent.getComponentType())
+//                    ?: return@let
+//
+//                val modelComponent = it.getComponent(playerRef, ModelComponent.getComponentType()) as ModelComponent?
+//                val eyeHeight = modelComponent?.model?.getEyeHeight(playerRef, it) ?: 0.0f
+//
+//                val worldParticle = WorldParticle("Ball2", Color(255.toByte(), 0, 0), 1.0F, Vector3f(0F, 0F, 0F),
+//                    Direction(0F, 0F, 0F))
+//
+//                spawnLaserBeam(
+//                    Vector3d(playerTransform.position.x, playerTransform.position.y + eyeHeight, playerTransform.position.z),
+//                    Vector3d(event.targetBlock.x + 0.5, event.targetBlock.y + 0.5, event.targetBlock.z + 0.5),
+//                    worldParticle,
+//                    listOf(playerRef),
+//                    it)
+//            }
         }
 
         override fun getQuery(): Query<EntityStore?> {
@@ -94,7 +93,7 @@ class Xenon(init: JavaPluginInit) : JavaPlugin(init), IComponentProvider {
             componentAccessor: ComponentAccessor<EntityStore>,
             spacing: Double = 0.5
         ) {
-            val direction = Vector3d(endPos).subtract(startPos)
+            val direction = Vector3d(endPos).sub(startPos)
             val distance = direction.length()
 
             if (distance == 0.0) return
@@ -126,12 +125,14 @@ class Xenon(init: JavaPluginInit) : JavaPlugin(init), IComponentProvider {
         val world = e.player.world ?: return
         val chunkStore = world.chunkStore
         val playerRef = e.playerRef
+        val componentAccessor = playerRef.store
+        val playerRefObj = componentAccessor.getComponent(playerRef, PlayerRef.getComponentType())
 
         val targetBlockVector = e.targetBlock
         val blockType = world.getBlockType(targetBlockVector)
 
         blockType?.item?.let {
-            e.player.sendMessage(Message.raw("Debug: ${Message.translation(it.translationKey)}"))
+            playerRefObj?.sendMessage(Message.raw("Debug: ${Message.translation(it.translationKey)}"))
         }
     }
 }
